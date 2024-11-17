@@ -75,6 +75,7 @@ import numpy as np
 import cv2
 import typing
 
+
 def triangulation(
         camera_matrix: np.ndarray,
         camera1_translation_vector: np.ndarray,
@@ -121,17 +122,39 @@ def triangulation(
     return points_3d
 
 
+def resection(image1, image2, camera_matrix, matches, points_3d):
+    # Step 1: Extract keypoints and matches
+    # Assume keypoints are extracted separately or use `matches` to create a refined match list
+    kps_image1, kps_image2, refined_matches = get_matches(image1, image2)
 
-# Task 4
-def resection(
-        image1,
-        image2,
-        camera_matrix,
-        matches,
-        points_3d
-):
-    pass
-    # YOUR CODE HERE
+    # Step 2: Create a map of 3D points to queryIdx of matches
+    point_map = {match.queryIdx: points_3d[i] for i, match in enumerate(matches)}
+
+    # Step 3: Collect corresponding 2D and 3D points
+    object_points = []
+    image_points = []
+    for match in refined_matches:
+        query_idx = match.queryIdx
+        if query_idx in point_map:
+            object_points.append(point_map[query_idx])  # Add 3D point
+            image_points.append(kps_image2[match.trainIdx].pt)  # Add 2D image point
+
+    # Convert lists to NumPy arrays
+    object_points = np.array(object_points, dtype=np.float32)
+    image_points = np.array(image_points, dtype=np.float32)
+
+    # Step 4: Estimate pose using solvePnPRansac for robustness
+    success, rotation_vec, translation_vec, inliers = cv2.solvePnPRansac(
+        object_points, image_points, camera_matrix, None
+    )
+
+    if not success:
+        raise ValueError("Failed to solve PnPRansac for the given inputs.")
+
+    # Step 5: Convert rotation vector to rotation matrix
+    rotation_matrix, _ = cv2.Rodrigues(rotation_vec)
+
+    return rotation_matrix, translation_vec
 
 
 def convert_to_world_frame(translation_vector, rotation_matrix):
