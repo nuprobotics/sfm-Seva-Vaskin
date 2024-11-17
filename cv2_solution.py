@@ -4,21 +4,64 @@ import typing
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import yaml
-
+import typing
 
 # Task 2
-def get_matches(image1, image2) -> typing.Tuple[
+def get_matches(image1, image2, k=0.75) -> typing.Tuple[
     typing.Sequence[cv2.KeyPoint], typing.Sequence[cv2.KeyPoint], typing.Sequence[cv2.DMatch]]:
+    """
+    :param image1: First input image (numpy.ndarray)
+    :param image2: Second input image (numpy.ndarray)
+    :param k: Ratio threshold for the k-ratio test (float), default is 0.75
+    :return: Tuple containing keypoints from image1, keypoints from image2, and a sequence of DMatch objects representing the matches
+    """
+    # Initialize SIFT detector
     sift = cv2.SIFT_create()
+
+    # Convert images to grayscale
     img1_gray = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
     img2_gray = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
+
+    # Detect keypoints and compute descriptors
     kp1, descriptors1 = sift.detectAndCompute(img1_gray, None)
     kp2, descriptors2 = sift.detectAndCompute(img2_gray, None)
 
+    # Initialize BFMatcher
     bf = cv2.BFMatcher()
-    matches_1_to_2: typing.Sequence[typing.Sequence[cv2.DMatch]] = bf.knnMatch(descriptors1, descriptors2, k=2)
 
-    # YOUR CODE HERE
+    # Match descriptors from image1 to image2 using k-NN with k=2
+    matches_1_to_2 = bf.knnMatch(descriptors1, descriptors2, k=2)
+
+    # Apply k-ratio test
+    good_matches_1_to_2 = []
+    for m, n in matches_1_to_2:
+        if m.distance < k * n.distance:
+            good_matches_1_to_2.append(m)
+
+    # Match descriptors from image2 to image1 using k-NN with k=2
+    matches_2_to_1 = bf.knnMatch(descriptors2, descriptors1, k=2)
+
+    # Apply k-ratio test
+    good_matches_2_to_1 = []
+    for m, n in matches_2_to_1:
+        if m.distance < k * n.distance:
+            good_matches_2_to_1.append(m)
+
+    # Build dictionaries to map query indices to train indices
+    match_dict_1_to_2 = {m.queryIdx: m.trainIdx for m in good_matches_1_to_2}
+    match_dict_2_to_1 = {m.queryIdx: m.trainIdx for m in good_matches_2_to_1}
+
+    # Perform left-right check (mutual matching)
+    mutual_matches = []
+    for m in good_matches_1_to_2:
+        idx1 = m.queryIdx
+        idx2 = m.trainIdx
+        # Check if the match is mutual
+        if idx2 in match_dict_2_to_1 and match_dict_2_to_1[idx2] == idx1:
+            mutual_matches.append(m)
+
+    return kp1, kp2, mutual_matches
+
 
 
 def get_second_camera_position(kp1, kp2, matches, camera_matrix):
