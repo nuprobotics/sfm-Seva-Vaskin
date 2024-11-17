@@ -71,6 +71,10 @@ def get_second_camera_position(kp1, kp2, matches, camera_matrix):
     return R, t, E
 
 
+import numpy as np
+import cv2
+import typing
+
 def triangulation(
         camera_matrix: np.ndarray,
         camera1_translation_vector: np.ndarray,
@@ -83,10 +87,10 @@ def triangulation(
 ):
     """
     :param camera_matrix: Camera intrinsic matrix, np.ndarray 3x3
-    :param camera1_translation_vector: First camera translation vector in world coordinate system, np.ndarray 3x1 or 3x
-    :param camera1_rotation_matrix: First camera rotation matrix in world coordinate system, np.ndarray 3x3
-    :param camera2_translation_vector: Second camera translation vector in world coordinate system, np.ndarray 3x1 or 3x
-    :param camera2_rotation_matrix: Second camera rotation matrix in world coordinate system, np.ndarray 3x3
+    :param camera1_translation_vector: First camera translation vector, np.ndarray 3x1
+    :param camera1_rotation_matrix: First camera rotation matrix, np.ndarray 3x3
+    :param camera2_translation_vector: Second camera translation vector, np.ndarray 3x1
+    :param camera2_rotation_matrix: Second camera rotation matrix, np.ndarray 3x3
     :param kp1: Keypoints in the first image, sequence of cv2.KeyPoint
     :param kp2: Keypoints in the second image, sequence of cv2.KeyPoint
     :param matches: Matches between keypoints, sequence of cv2.DMatch
@@ -96,20 +100,15 @@ def triangulation(
     t1 = camera1_translation_vector.reshape(3, 1)
     t2 = camera2_translation_vector.reshape(3, 1)
 
-    # Compute rotation matrices from world to camera coordinates
-    # Assuming camera_rotation_matrices are from camera to world coordinates
-    R1_wc = camera1_rotation_matrix.T
-    R2_wc = camera2_rotation_matrix.T
-
-    # Compute translation vectors from world to camera coordinates
-    t1_wc = -R1_wc @ t1
-    t2_wc = -R2_wc @ t2
-
     # Form the projection matrices P1 and P2
-    P1 = camera_matrix @ np.hstack((R1_wc, t1_wc))
-    P2 = camera_matrix @ np.hstack((R2_wc, t2_wc))
+    # [R | t] where R is rotation matrix and t is translation vector
+    RT1 = np.hstack((camera1_rotation_matrix, t1))
+    RT2 = np.hstack((camera2_rotation_matrix, t2))
 
-    # Extract matched points from keypoints
+    P1 = camera_matrix @ RT1
+    P2 = camera_matrix @ RT2
+
+    # Extract matched keypoints and convert to homogeneous coordinates
     pts1 = np.array([kp1[m.queryIdx].pt for m in matches], dtype=np.float64).T  # Shape (2, N)
     pts2 = np.array([kp2[m.trainIdx].pt for m in matches], dtype=np.float64).T  # Shape (2, N)
 
@@ -120,6 +119,7 @@ def triangulation(
     points_3d = (points_4d_hom[:3] / points_4d_hom[3]).T  # Shape (N, 3)
 
     return points_3d
+
 
 
 # Task 4
