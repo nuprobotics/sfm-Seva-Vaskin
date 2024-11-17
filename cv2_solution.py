@@ -135,8 +135,9 @@ def resection(
 
 
 def convert_to_world_frame(translation_vector, rotation_matrix):
-    pass
-    # YOUR CODE HERE
+    camera_orientation = rotation_matrix.T
+    camera_position = -camera_orientation @ translation_vector
+    return camera_position, camera_orientation
 
 
 def visualisation(
